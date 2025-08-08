@@ -2,106 +2,85 @@ import telebot
 import subprocess
 import os
 
-BOT_TOKEN = '7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU'
-ALLOWED_CHAT_ID = -1002886621753  # ID чата
+BOT_TOKEN = '7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU'  # твой токен
+ALLOWED_CHAT_ID = -1002886621753
+MESSAGE_ID = 1  # айди твоего "терминала" в чате
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
 current_directory = os.getcwd()
-
-# Опасные команды
-dangerous_patterns = [
-    "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /", "sudo reboot", "sudo shutdown",
-    ":(){ :|:& };:", "mkfs", "dd if=", "dd of=", ">:",
-    "chmod 000", "chown 0:0", ">: /dev/sda", ">: /dev/sdb", ">: /dev/*",
-    "halt", "poweroff", "init 0", "init 6", "reboot", "shutdown -h now", "shutdown -r now",
-    "rm -rf *", "rm -rf .", "rm -rf ~", "rm -rf /*", "rm -rf /home", "rm -rf /root",
-    "wget http://", "curl http://", "nc -l", "netcat -l",
-    "mkfs.ext4", "mkfs.xfs", "mkfs.vfat", "mkfs.btrfs",
-    "echo > /etc/passwd", "echo > /etc/shadow", "echo > /etc/group", "echo > /etc/sudoers",
-    "passwd root", "passwd -d root", "userdel", "groupdel", "adduser", "addgroup",
-    "iptables -F", "iptables --flush", "iptables -X", "iptables --delete-chain", "iptables -P"
-]
-
-# Сетевые команды
-network_leak_patterns = [
-    "ip a", "ip addr", "ip link", "ip route", "ip neigh",
-    "ifconfig",
-    "hostname -i", "hostname -I", "hostname",
-    "whoami",
-    "curl ifconfig.me", "wget ifconfig.me", "curl icanhazip.com", "wget icanhazip.com",
-    "ping", "traceroute", "nslookup",
-    "netstat", "ss -tuln", "ss -tulnp", "arp -a"
-]
-
-# Системные директории, куда нельзя лезть
-blocked_dirs = {
-    "bin", "boot", "dev", "etc", "home", "lib", "lib64", "lost+found",
-    "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
-}
+terminal_history = "archlog.txt"  # хранит все команды и вывод
 
 def is_command_dangerous(command):
-    c = command.lower()
-    for p in dangerous_patterns + network_leak_patterns:
-        if p in c:
-            print("неа фигушки")  # единственный лог
+    dangerous_patterns = [
+        "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /",
+        "sudo reboot", "sudo shutdown", ":(){ :|:& };:"
+    ]
+    for p in dangerous_patterns:
+        if p in command.lower():
             return True
     return False
 
 @bot.message_handler(func=lambda message: True)
 def handle_command(message):
-    global current_directory
+    global current_directory, terminal_history
 
     if message.chat.id != ALLOWED_CHAT_ID:
         return
 
     command = message.text.strip()
 
+    # Опасные команды
     if is_command_dangerous(command):
-        bot.reply_to(message, "неа фигушки")
+        terminal_history += f"$ {command}\n# Отклонено: опасная команда\n"
+        update_terminal(message.chat.id)
         return
 
-    # Обработка cd
+    # clear
+    if command == "clear":
+        terminal_history = ""
+        update_terminal(message.chat.id)
+        return
+
+    # cd
     if command.startswith("cd"):
         parts = command.split(maxsplit=1)
         if len(parts) == 2:
-            path = parts[1].strip()
-            dir_name = os.path.normpath(path).split(os.sep)[0]
-            if dir_name in blocked_dirs:
-                bot.reply_to(message, "Нет доступа к этой директории")
-                return
-            try:
-                new_path = os.path.abspath(os.path.join(current_directory, path))
-                if os.path.isdir(new_path):
-                    current_directory = new_path
-                    bot.reply_to(message, f"```shell\ncd {path}\n```", parse_mode="Markdown")
-                else:
-                    bot.reply_to(message, f"```shell\ncd {path}\n# Нет такой директории\n```", parse_mode="Markdown")
-            except Exception as e:
-                bot.reply_to(message, f"```shell\ncd {path}\n# Ошибка: {str(e)}\n```", parse_mode="Markdown")
+            new_path = os.path.abspath(os.path.join(current_directory, parts[1]))
+            if os.path.isdir(new_path):
+                current_directory = new_path
+                terminal_history += f"$ {command}\n"
+            else:
+                terminal_history += f"$ {command}\n# Нет такой директории\n"
         else:
-            bot.reply_to(message, "```shell\ncd\n# Укажи путь после cd\n```", parse_mode="Markdown")
+            current_directory = os.path.expanduser("~")
+            terminal_history += f"$ {command}\n"
+        update_terminal(message.chat.id)
         return
 
+    # Выполнение команды
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory)
         output = result.stdout + result.stderr
+        terminal_history += f"$ {command}\n{output}"
+    except Exception as e:
+        terminal_history += f"$ {command}\n# Ошибка: {str(e)}\n"
 
-        # Фильтруем ls
-        if command.strip() == "ls":
-            lines = output.splitlines()
-            lines = [l for l in lines if l.strip() not in blocked_dirs]
-            output = "\n".join(lines)
+    # Ограничение длины
+    if len(terminal_history) > 4000:
+        terminal_history = terminal_history[-4000:]
 
-        if len(output) > 4000:
-            output = output[:4000] + "\n# [Вывод обрезан]"
+    update_terminal(message.chat.id)
 
-        bot.reply_to(
-            message,
-            f"```shell\n{command}\n{output}```" if output.strip() else f"```shell\n{command}\n```",
+def update_terminal(chat_id):
+    """Редактирует одно сообщение с историей"""
+    try:
+        bot.edit_message_text(
+            f"```shell\n{terminal_history}```",
+            chat_id=chat_id,
+            message_id=MESSAGE_ID,
             parse_mode="Markdown"
         )
     except Exception as e:
-        bot.reply_to(message, f"```shell\n{command}\n# Ошибка: {str(e)}\n```", parse_mode="Markdown")
+        print("Ошибка обновления:", e)
 
 bot.polling()
