@@ -9,6 +9,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 current_directory = os.getcwd()
 
+# Опасные команды для системы
 dangerous_patterns = [
     "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /", "sudo reboot", "sudo shutdown",
     ":(){ :|:& };:", "mkfs", "dd if=", "dd of=", ">:",
@@ -22,6 +23,18 @@ dangerous_patterns = [
     "iptables -F", "iptables --flush", "iptables -X", "iptables --delete-chain", "iptables -P"
 ]
 
+# Команды, которые могут спалить IP или сеть
+network_leak_patterns = [
+    "ip a", "ip addr", "ip link", "ip route", "ip neigh",
+    "ifconfig",
+    "hostname -i", "hostname -I", "hostname",
+    "whoami",
+    "curl ifconfig.me", "wget ifconfig.me", "curl icanhazip.com", "wget icanhazip.com",
+    "ping", "traceroute", "nslookup",
+    "netstat", "ss -tuln", "ss -tulnp", "arp -a"
+]
+
+# Запрещённые системные директории
 blocked_dirs = {
     "bin", "boot", "dev", "etc", "home", "lib", "lib64", "lost+found",
     "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
@@ -29,9 +42,9 @@ blocked_dirs = {
 
 def is_command_dangerous(command):
     c = command.lower()
-    for p in dangerous_patterns:
+    for p in dangerous_patterns + network_leak_patterns:
         if p in c:
-            print("Плохая команда обнаружена - неа фигушки")
+            print("неа фигушки")  # единственный лог
             return True
     return False
 
@@ -48,49 +61,48 @@ def handle_command(message):
         bot.reply_to(message, "неа фигушки")
         return
 
-    # обработка cd
+    # Обработка cd
     if command.startswith("cd"):
         parts = command.split(maxsplit=1)
         if len(parts) == 2:
             path = parts[1].strip()
             dir_name = os.path.normpath(path).split(os.sep)[0]
             if dir_name in blocked_dirs:
-                bot.reply_to(message, "❌ Нет доступа к этой директории", parse_mode="Markdown")
+                bot.reply_to(message, "Нет доступа к этой директории")
                 return
             try:
                 new_path = os.path.abspath(os.path.join(current_directory, path))
                 if os.path.isdir(new_path):
                     current_directory = new_path
-                    bot.reply_to(message, f"📁 Перешёл в директорию:\n`{current_directory}`", parse_mode="Markdown")
+                    bot.reply_to(message, f"Перешёл в директорию: {current_directory}")
                 else:
-                    bot.reply_to(message, f"❌ Нет такой директории: `{path}`", parse_mode="Markdown")
+                    bot.reply_to(message, f"Нет такой директории: {path}")
             except Exception as e:
-                bot.reply_to(message, f"❌ Ошибка при смене директории:\n`{str(e)}`", parse_mode="Markdown")
+                bot.reply_to(message, f"Ошибка при смене директории: {str(e)}")
         else:
-            bot.reply_to(message, "❌ Укажи путь после `cd`", parse_mode="Markdown")
+            bot.reply_to(message, "Укажи путь после cd")
         return
 
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory)
         output = result.stdout + result.stderr
 
-        # фильтруем ls
+        # Фильтруем ls
         if command.strip() == "ls":
             lines = output.splitlines()
             lines = [l for l in lines if l.strip() not in blocked_dirs]
             output = "\n".join(lines)
 
         if not output.strip():
-            output = "Команда выполнена, но ничего не вывела."
+            output = ""
         if len(output) > 4000:
             output = output[:4000] + "\n\n[Вывод обрезан]"
 
         bot.reply_to(
             message,
-            f"📥 Команда:\n`{command}`\n\n📤 Ответ:\n```\n{output}\n```",
-            parse_mode="Markdown"
+            f"Команда: {command}\n\nОтвет:\n{output}"
         )
     except Exception as e:
-        bot.reply_to(message, f"❌ Ошибка:\n`{str(e)}`", parse_mode="Markdown")
+        bot.reply_to(message, f"Ошибка: {str(e)}")
 
 bot.polling()
