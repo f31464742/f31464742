@@ -3,7 +3,7 @@ import subprocess
 import os
 import json
 
-BOT_TOKEN = "..."  # токен
+BOT_TOKEN = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"  # токен
 ALLOWED_CHAT_ID = -1002886621753  # ID чата
 DATA_FILE = "terminal.json"
 
