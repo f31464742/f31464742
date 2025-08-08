@@ -3,7 +3,7 @@ import subprocess
 import os
 import json
 
-BOT_TOKEN = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"  # токен
+BOT_TOKEN = "..."  # токен
 ALLOWED_CHAT_ID = -1002886621753  # ID чата
 DATA_FILE = "terminal.json"
 
@@ -52,6 +52,12 @@ def handle_command(message):
     if message.chat.id != ALLOWED_CHAT_ID:
         return
 
+    # Удаляем сообщение пользователя, чтобы чат был чистым
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        print("Не удалось удалить сообщение:", e)
+
     command = message.text.strip()
 
     # Опасные команды
@@ -90,7 +96,7 @@ def handle_command(message):
     except Exception as e:
         data["terminal_history"] += f"$ {command}\n# Ошибка: {str(e)}\n"
 
-    # Ограничение длины
+    # Ограничение длины (оставляем последние 4000 символов)
     if len(data["terminal_history"]) > 4000:
         data["terminal_history"] = data["terminal_history"][-4000:]
 
@@ -106,5 +112,4 @@ def create_terminal_message():
 if data["message_id"] is None:
     create_terminal_message()
 
-# Запускаем бота
 bot.polling()
