@@ -2,8 +2,6 @@ import os
 import subprocess
 import telebot
 
-
-
 BOT_TOKEN            = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"  
 CHAT_ID              = -1002886621753   
 TERMINAL_MESSAGE_ID  = 265              
