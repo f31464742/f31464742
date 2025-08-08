@@ -44,13 +44,18 @@ def update_terminal():
     
     # 10 пустых строк сверху для высоты
     empty_top = "\n" * 10  
-    # 10 невидимых символов для ширины (U+200B)
-    wide_pad = "\u200B" * 10
     
-    # Каждую строку делаем широкой
-    wide_log = [line + wide_pad for line in terminal_log]
+    # Строка для ширины (100 пробелов)
+    wide_line = " " * 100  
     
-    text = f"```shell\n{empty_top}" + "\n".join(wide_log) + "\n```"
+    # Копируем текущий вывод
+    text_lines = terminal_log.copy()
+    
+    # Добавляем широкую строку в конце
+    text_lines.append(wide_line)
+    
+    # Формируем блок
+    text = f"```shell\n{empty_top}" + "\n".join(text_lines) + "\n```"
     
     if text == last_terminal_text:
         return
