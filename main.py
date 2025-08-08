@@ -8,6 +8,9 @@ CHAT_ID = -1002886621753  # id чата
 TERMINAL_MESSAGE_ID = 265  # id "терминала"
 BASE_DIR = "/root/arch"  # директория, в которой работаем
 
+# Создаём директорию, если её нет
+os.makedirs(BASE_DIR, exist_ok=True)
+
 bot = telebot.TeleBot(BOT_TOKEN)
 current_directory = BASE_DIR
 terminal_log = ["$ "]
@@ -34,7 +37,9 @@ def is_inside_base(path):
 
 def update_terminal():
     """Обновляет терминал в одном сообщении"""
-    text = "```shell\n" + "\n".join(terminal_log) + "\n```" + "‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎‎"
+    # Добавляем невидимые символы, чтобы сообщение всегда было широким
+    padding = "‎" * 50
+    text = "```shell\n" + "\n".join(terminal_log) + "\n```" + padding
     bot.edit_message_text(
         text,
         chat_id=CHAT_ID,
@@ -75,11 +80,13 @@ def handle_command(message):
         parts = command.split(maxsplit=1)
         if len(parts) == 1:
             return
-        new_path = os.path.join(current_directory, parts[1])
+        new_path = os.path.abspath(os.path.join(current_directory, parts[1]))
+        
+        # Проверка выхода за пределы BASE_DIR
         if not is_inside_base(new_path):
             terminal_log.append(f"$ {command}\n# нельзя выйти за {BASE_DIR}")
         elif os.path.isdir(new_path):
-            current_directory = os.path.abspath(new_path)
+            current_directory = new_path
         else:
             terminal_log.append(f"$ {command}\n# нет такой директории")
         update_terminal()
