@@ -35,7 +35,7 @@ network_leak_patterns = [
     "netstat", "ss -tuln", "ss -tulnp", "arp -a"
 ]
 
-# Системные директории, куда нельзя лезть
+# Запрещённые директории
 blocked_dirs = {
     "bin", "boot", "dev", "etc", "home", "lib", "lib64", "lost+found",
     "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
@@ -54,7 +54,9 @@ def get_prompt():
     if rel_path == ".":
         rel_path = "~"
     else:
-        rel_path = "~/" + rel_path
+        rel_path_parts = rel_path.split(os.sep)
+        rel_path_parts = [p for p in rel_path_parts if p not in blocked_dirs]
+        rel_path = "~" if not rel_path_parts else "~/" + "/".join(rel_path_parts)
     return f"archbot@chat:{rel_path}$"
 
 @bot.message_handler(func=lambda message: True)
@@ -81,6 +83,10 @@ def handle_command(message):
                 return
             try:
                 new_path = os.path.abspath(os.path.join(current_directory, path))
+                new_dir_name = os.path.normpath(new_path).split(os.sep)[0]
+                if new_dir_name in blocked_dirs:
+                    bot.reply_to(message, f"```shell\n{get_prompt()} cd {path}\nНет доступа к этой директории\n```", parse_mode="Markdown")
+                    return
                 if os.path.isdir(new_path):
                     current_directory = new_path
                     bot.reply_to(message, f"```shell\n{get_prompt()} cd {path}\n```", parse_mode="Markdown")
