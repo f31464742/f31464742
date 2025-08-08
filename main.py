@@ -13,7 +13,8 @@ os.makedirs(BASE_DIR, exist_ok=True)
 
 bot = telebot.TeleBot(BOT_TOKEN)
 current_directory = BASE_DIR
-terminal_log = ["$ "]
+PROMPT = "archbot@chat:~$"
+terminal_log = [PROMPT]
 last_terminal_text = ""  # для защиты от 400 Bad Request
 
 # === ЗАГРУЗКА СПИСКА ОПАСНЫХ КОМАНД ===
@@ -89,13 +90,13 @@ def handle_command(message):
     # clear
     if command in ["clear", "cls"]:
         terminal_log.clear()
-        terminal_log.append("$ ")
+        terminal_log.append(PROMPT)
         update_terminal()
         return
 
     # Опасные команды
     if is_command_dangerous(command):
-        terminal_log.append(f"$ {command}\n# запрещено")
+        terminal_log.append(f"{PROMPT} {command}\n# запрещено")
         update_terminal()
         return
 
@@ -107,15 +108,15 @@ def handle_command(message):
         new_path = os.path.abspath(os.path.join(current_directory, parts[1]))
 
         if not is_inside_base(new_path):
-            terminal_log.append(f"$ {command}\n# нельзя выйти за {BASE_DIR}")
+            terminal_log.append(f"{PROMPT} {command}\n# нельзя выйти за {BASE_DIR}")
 
         elif os.path.abspath(current_directory) == BASE_DIR and parts[1] in ["..", "../"]:
-            terminal_log.append(f"$ {command}\n# уже в корневой папке {BASE_DIR}")
+            terminal_log.append(f"{PROMPT} {command}\n# уже в корневой папке {BASE_DIR}")
 
         elif os.path.isdir(new_path):
             current_directory = new_path
         else:
-            terminal_log.append(f"$ {command}\n# нет такой директории")
+            terminal_log.append(f"{PROMPT} {command}\n# нет такой директории")
 
         update_terminal()
         return
@@ -126,12 +127,12 @@ def handle_command(message):
             command, shell=True, capture_output=True, text=True, cwd=current_directory
         )
         output = result.stdout + result.stderr
-        terminal_log.append(f"$ {command}\n{output.strip()}")
+        terminal_log.append(f"{PROMPT} {command}\n{output.strip()}")
         if len(terminal_log) > 30:
             terminal_log.pop(0)
         update_terminal()
     except Exception as e:
-        terminal_log.append(f"$ {command}\n# ошибка: {str(e)}")
+        terminal_log.append(f"{PROMPT} {command}\n# ошибка: {str(e)}")
         update_terminal()
 
 print("Бот запущен!")
