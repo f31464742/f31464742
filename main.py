@@ -7,7 +7,8 @@ ALLOWED_CHAT_ID = -1002886621753  # ID чата
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-current_directory = os.getcwd()
+home_directory = os.getcwd()
+current_directory = home_directory
 
 # Опасные команды
 dangerous_patterns = [
@@ -48,6 +49,14 @@ def is_command_dangerous(command):
             return True
     return False
 
+def get_prompt():
+    rel_path = os.path.relpath(current_directory, home_directory)
+    if rel_path == ".":
+        rel_path = "~"
+    else:
+        rel_path = "~/" + rel_path
+    return f"archbot@chat:{rel_path}$"
+
 @bot.message_handler(func=lambda message: True)
 def handle_command(message):
     global current_directory
@@ -68,19 +77,19 @@ def handle_command(message):
             path = parts[1].strip()
             dir_name = os.path.normpath(path).split(os.sep)[0]
             if dir_name in blocked_dirs:
-                bot.reply_to(message, "Нет доступа к этой директории")
+                bot.reply_to(message, f"```shell\n{get_prompt()} cd {path}\nНет доступа к этой директории\n```", parse_mode="Markdown")
                 return
             try:
                 new_path = os.path.abspath(os.path.join(current_directory, path))
                 if os.path.isdir(new_path):
                     current_directory = new_path
-                    bot.reply_to(message, f"```shell\ncd {path}\n```", parse_mode="Markdown")
+                    bot.reply_to(message, f"```shell\n{get_prompt()} cd {path}\n```", parse_mode="Markdown")
                 else:
-                    bot.reply_to(message, f"```shell\ncd {path}\n# Нет такой директории\n```", parse_mode="Markdown")
+                    bot.reply_to(message, f"```shell\n{get_prompt()} cd {path}\nНет такой директории\n```", parse_mode="Markdown")
             except Exception as e:
-                bot.reply_to(message, f"```shell\ncd {path}\n# Ошибка: {str(e)}\n```", parse_mode="Markdown")
+                bot.reply_to(message, f"```shell\n{get_prompt()} cd {path}\nОшибка: {str(e)}\n```", parse_mode="Markdown")
         else:
-            bot.reply_to(message, "```shell\ncd\n# Укажи путь после cd\n```", parse_mode="Markdown")
+            bot.reply_to(message, f"```shell\n{get_prompt()} cd\nУкажи путь после cd\n```", parse_mode="Markdown")
         return
 
     try:
@@ -94,14 +103,14 @@ def handle_command(message):
             output = "\n".join(lines)
 
         if len(output) > 4000:
-            output = output[:4000] + "\n# [Вывод обрезан]"
+            output = output[:4000] + "\n[Вывод обрезан]"
 
         bot.reply_to(
             message,
-            f"```shell\n{command}\n{output}```" if output.strip() else f"```shell\n{command}\n```",
+            f"```shell\n{get_prompt()} {command}\n{output}```" if output.strip() else f"```shell\n{get_prompt()} {command}\n```",
             parse_mode="Markdown"
         )
     except Exception as e:
-        bot.reply_to(message, f"```shell\n{command}\n# Ошибка: {str(e)}\n```", parse_mode="Markdown")
+        bot.reply_to(message, f"```shell\n{get_prompt()} {command}\nОшибка: {str(e)}\n```", parse_mode="Markdown")
 
 bot.polling()
