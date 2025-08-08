@@ -1,13 +1,13 @@
 import telebot
 import subprocess
 import os
-import json
 
-BOT_TOKEN = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"  # токен
-ALLOWED_CHAT_ID = -1002886621753  # ID чата
-DATA_FILE = "terminal.json"
+BOT_TOKEN = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"
+CHAT_ID = -1002886621753  # твой чат
+MESSAGE_ID = 265  # ID сообщения-терминала
 
 bot = telebot.TeleBot(BOT_TOKEN)
+current_directory = os.getcwd()
 
 # Опасные команды
 dangerous_patterns = [
@@ -40,21 +40,6 @@ blocked_dirs = {
     "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
 }
 
-# Загружаем или создаём данные
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-else:
-    data = {
-        "message_id": None,
-        "history": [],
-        "current_directory": os.getcwd()
-    }
-
-def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
 def is_command_dangerous(command):
     c = command.lower()
     for p in dangerous_patterns + network_leak_patterns:
@@ -62,31 +47,14 @@ def is_command_dangerous(command):
             return True
     return False
 
-def update_terminal():
-    """Обновляет одно сообщение с последними 50 строками и делает его широким"""
-    visible_lines = data["history"][-50:]
-    big_terminal = "\n".join(visible_lines)
-
-    # Добавляем пустые строки сверху и снизу
-    big_terminal = "\n" * 2 + big_terminal + "\n" * 2
-
-    # Делаем широкую строку с невидимыми символами
-    big_terminal += "\n" + ("\u200b" * 150)
-
-    bot.edit_message_text(
-        f"```shell\n{big_terminal}```",
-        chat_id=ALLOWED_CHAT_ID,
-        message_id=data["message_id"],
-        parse_mode="Markdown"
-    )
-    save_data()
-
 @bot.message_handler(func=lambda message: True)
-def handle_command(message):
-    if message.chat.id != ALLOWED_CHAT_ID:
+def handle_cmd(message):
+    global current_directory
+
+    if message.chat.id != CHAT_ID:
         return
 
-    # Удаляем сообщение пользователя
+    # Удаляем команду пользователя
     try:
         bot.delete_message(message.chat.id, message.message_id)
     except:
@@ -94,50 +62,50 @@ def handle_command(message):
 
     command = message.text.strip()
 
-    # Запрет опасных команд
+    # Проверка опасных команд
     if is_command_dangerous(command):
-        data["history"].append(f"$ {command}")
-        data["history"].append("# Отклонено: опасная команда")
-        update_terminal()
+        bot.edit_message_text(
+            f"```shell\n$ {command}\n# Неа, фигушки```" + "\u200b" * 150,
+            chat_id=CHAT_ID,
+            message_id=MESSAGE_ID,
+            parse_mode="Markdown"
+        )
         return
 
-    # clear
-    if command == "clear":
-        data["history"].clear()
-        update_terminal()
-        return
-
-    # cd
+    # Обработка cd
     if command.startswith("cd"):
         parts = command.split(maxsplit=1)
         if len(parts) == 2:
             path = parts[1].strip()
             dir_name = os.path.normpath(path).split(os.sep)[0]
             if dir_name in blocked_dirs:
-                data["history"].append(f"$ {command}")
-                data["history"].append("# Нет доступа к этой директории")
-                update_terminal()
-                return
-            try:
-                new_path = os.path.abspath(os.path.join(data["current_directory"], path))
-                if os.path.isdir(new_path):
-                    data["current_directory"] = new_path
-                    data["history"].append(f"$ {command}")
-                else:
-                    data["history"].append(f"$ {command}")
-                    data["history"].append("# Нет такой директории")
-            except Exception as e:
-                data["history"].append(f"$ {command}")
-                data["history"].append(f"# Ошибка: {str(e)}")
+                output = "# Нет доступа к этой директории"
+            else:
+                try:
+                    new_path = os.path.abspath(os.path.join(current_directory, path))
+                    if os.path.isdir(new_path):
+                        current_directory = new_path
+                        output = ""
+                    else:
+                        output = "# Нет такой директории"
+                except Exception as e:
+                    output = f"# Ошибка: {str(e)}"
         else:
-            data["history"].append(f"$ {command}")
-            data["history"].append("# Укажи путь после cd")
-        update_terminal()
+            output = "# Укажи путь после cd"
+
+        bot.edit_message_text(
+            f"```shell\n$ {command}\n{output}```" + "\u200b" * 150,
+            chat_id=CHAT_ID,
+            message_id=MESSAGE_ID,
+            parse_mode="Markdown"
+        )
         return
 
-    # Выполнение команды
+    # Выполняем команду
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=data["current_directory"])
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory
+        )
         output = result.stdout + result.stderr
 
         # Фильтруем ls
@@ -146,23 +114,18 @@ def handle_command(message):
             lines = [l for l in lines if l.strip() not in blocked_dirs]
             output = "\n".join(lines)
 
-        data["history"].append(f"$ {command}")
-        if output.strip():
-            data["history"].extend(output.strip().split("\n"))
+        if len(output) > 4000:
+            output = output[:4000] + "\n# [Вывод обрезан]"
+
     except Exception as e:
-        data["history"].append(f"$ {command}")
-        data["history"].append(f"# Ошибка: {str(e)}")
+        output = f"# Ошибка: {str(e)}"
 
-    update_terminal()
-
-def create_terminal_message():
-    """Создаёт первое сообщение-терминал при старте"""
-    msg = bot.send_message(ALLOWED_CHAT_ID, "```shell\n# Терминал запущен\n```", parse_mode="Markdown")
-    data["message_id"] = msg.message_id
-    save_data()
-
-# Если message_id нет — создаём сообщение
-if data["message_id"] is None:
-    create_terminal_message()
+    # Делаем широкое сообщение
+    bot.edit_message_text(
+        f"```shell\n$ {command}\n{output}```" + "\u200b" * 150,
+        chat_id=CHAT_ID,
+        message_id=MESSAGE_ID,
+        parse_mode="Markdown"
+    )
 
 bot.polling()
