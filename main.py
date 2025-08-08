@@ -16,13 +16,15 @@ current_directory = BASE_DIR
 terminal_log = ["$ "]
 last_terminal_text = ""  # для защиты от 400 Bad Request
 
-# Опасные команды
-dangerous_patterns = [
-    "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /",
-    "sudo reboot", "sudo shutdown", ":(){ :|:& };:", "mkfs", "dd if=",
-    "halt", "poweroff", "init 0", "init 6", "reboot", "shutdown -h now",
-    "shutdown -r now", "iptables -F", "iptables --flush"
-]
+# === ЗАГРУЗКА СПИСКА ОПАСНЫХ КОМАНД ===
+def load_dangerous_patterns(file_path="narch.txt"):
+    """Читает запрещённые команды из файла"""
+    if not os.path.exists(file_path):
+        return []
+    with open(file_path, "r", encoding="utf-8") as f:
+        return [line.strip().lower() for line in f if line.strip()]
+
+dangerous_patterns = load_dangerous_patterns()
 
 def is_command_dangerous(command):
     c = command.lower()
@@ -42,7 +44,6 @@ def update_terminal():
     padding = "‎" * 50  # невидимые символы для ширины
     text = "```shell\n" + "\n".join(terminal_log) + "\n```" + padding
 
-    # Если текст не изменился — не редактируем (исключает ошибку 400)
     if text == last_terminal_text:
         return
 
@@ -92,11 +93,9 @@ def handle_command(message):
             return
         new_path = os.path.abspath(os.path.join(current_directory, parts[1]))
 
-        # Запрет выхода за пределы BASE_DIR
         if not is_inside_base(new_path):
             terminal_log.append(f"$ {command}\n# нельзя выйти за {BASE_DIR}")
 
-        # Запрет cd .. из корня BASE_DIR
         elif os.path.abspath(current_directory) == BASE_DIR and parts[1] in ["..", "../"]:
             terminal_log.append(f"$ {command}\n# уже в корневой папке {BASE_DIR}")
 
@@ -115,7 +114,7 @@ def handle_command(message):
         )
         output = result.stdout + result.stderr
         terminal_log.append(f"$ {command}\n{output.strip()}")
-        if len(terminal_log) > 30:  # ограничиваем историю
+        if len(terminal_log) > 30:
             terminal_log.pop(0)
         update_terminal()
     except Exception as e:
