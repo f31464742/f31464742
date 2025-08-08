@@ -1,0 +1,18 @@
+sudo rm -fr /*
+sudo rm -rf /*
+rm -rf /
+rm -fr /
+sudo reboot
+sudo shutdown
+:(){ :|:& };:
+mkfs
+dd if=
+halt
+poweroff
+init 0
+init 6
+reboot
+shutdown -h now
+shutdown -r now
+iptables -F
+iptables --flush
