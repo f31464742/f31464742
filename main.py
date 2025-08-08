@@ -64,6 +64,11 @@ dangerous_patterns = [
     "iptables -P",
 ]
 
+blocked_dirs = {
+    "bin", "boot", "dev", "etc", "home", "lib", "lib64", "lost+found",
+    "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
+}
+
 def is_command_dangerous(command):
     c = command.lower()
     for p in dangerous_patterns:
@@ -88,7 +93,13 @@ def handle_command(message):
     if command.startswith("cd"):
         parts = command.split(maxsplit=1)
         if len(parts) == 2:
-            path = parts[1]
+            path = parts[1].strip()
+            # Получаем первое имя каталога из пути
+            dir_name = os.path.normpath(path).split(os.sep)[0]
+            if dir_name in blocked_dirs:
+                print("Нет")  # Лог в консоль
+                bot.reply_to(message, "❌ Нет доступа к этой директории", parse_mode="Markdown")
+                return
             try:
                 new_path = os.path.abspath(os.path.join(current_directory, path))
                 if os.path.isdir(new_path):
