@@ -41,9 +41,12 @@ def is_inside_base(path):
 def update_terminal():
     """Обновляет терминал в одном сообщении"""
     global last_terminal_text
-    padding = "‎" * 50  # невидимые символы для ширины
-    text = "```shell\n" + "\n".join(terminal_log) + "\n```" + padding
-
+    
+    # 10 пустых строк сверху для увеличения высоты
+    empty_top = "\n" * 10  
+    
+    text = f"```shell\n{empty_top}" + "\n".join(terminal_log) + "\n```"
+    
     if text == last_terminal_text:
         return
 
