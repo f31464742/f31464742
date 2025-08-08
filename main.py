@@ -3,65 +3,23 @@ import subprocess
 import os
 
 BOT_TOKEN = '7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU'
-ALLOWED_CHAT_ID = -1002886621753
+ALLOWED_CHAT_ID = -1002886621753  # ID чата
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 current_directory = os.getcwd()
 
 dangerous_patterns = [
-    "sudo rm -fr /*",
-    "sudo rm -rf /*",
-    "rm -rf /",
-    "rm -fr /",
-    "sudo reboot",
-    "sudo shutdown",
-    ":(){ :|:& };:",
-    "mkfs",
-    "dd if=",
-    "dd of=",
-    ">:",
-    "chmod 000",
-    "chown 0:0",
-    ">: /dev/sda",
-    ">: /dev/sdb",
-    ">: /dev/*",
-    "halt",
-    "poweroff",
-    "init 0",
-    "init 6",
-    "reboot",
-    "shutdown -h now",
-    "shutdown -r now",
-    "rm -rf *",
-    "rm -rf .",
-    "rm -rf ~",
-    "rm -rf /*",
-    "rm -rf /home",
-    "rm -rf /root",
-    "wget http://",
-    "curl http://",
-    "nc -l",
-    "netcat -l",
-    "mkfs.ext4",
-    "mkfs.xfs",
-    "mkfs.vfat",
-    "mkfs.btrfs",
-    "echo > /etc/passwd",
-    "echo > /etc/shadow",
-    "echo > /etc/group",
-    "echo > /etc/sudoers",
-    "passwd root",
-    "passwd -d root",
-    "userdel",
-    "groupdel",
-    "adduser",
-    "addgroup",
-    "iptables -F",
-    "iptables --flush",
-    "iptables -X",
-    "iptables --delete-chain",
-    "iptables -P",
+    "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /", "sudo reboot", "sudo shutdown",
+    ":(){ :|:& };:", "mkfs", "dd if=", "dd of=", ">:",
+    "chmod 000", "chown 0:0", ">: /dev/sda", ">: /dev/sdb", ">: /dev/*",
+    "halt", "poweroff", "init 0", "init 6", "reboot", "shutdown -h now", "shutdown -r now",
+    "rm -rf *", "rm -rf .", "rm -rf ~", "rm -rf /*", "rm -rf /home", "rm -rf /root",
+    "wget http://", "curl http://", "nc -l", "netcat -l",
+    "mkfs.ext4", "mkfs.xfs", "mkfs.vfat", "mkfs.btrfs",
+    "echo > /etc/passwd", "echo > /etc/shadow", "echo > /etc/group", "echo > /etc/sudoers",
+    "passwd root", "passwd -d root", "userdel", "groupdel", "adduser", "addgroup",
+    "iptables -F", "iptables --flush", "iptables -X", "iptables --delete-chain", "iptables -P"
 ]
 
 blocked_dirs = {
@@ -90,14 +48,13 @@ def handle_command(message):
         bot.reply_to(message, "неа фигушки")
         return
 
+    # обработка cd
     if command.startswith("cd"):
         parts = command.split(maxsplit=1)
         if len(parts) == 2:
             path = parts[1].strip()
-            # Получаем первое имя каталога из пути
             dir_name = os.path.normpath(path).split(os.sep)[0]
             if dir_name in blocked_dirs:
-                print("Нет")  # Лог в консоль
                 bot.reply_to(message, "❌ Нет доступа к этой директории", parse_mode="Markdown")
                 return
             try:
@@ -116,11 +73,23 @@ def handle_command(message):
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory)
         output = result.stdout + result.stderr
+
+        # фильтруем ls
+        if command.strip() == "ls":
+            lines = output.splitlines()
+            lines = [l for l in lines if l.strip() not in blocked_dirs]
+            output = "\n".join(lines)
+
         if not output.strip():
             output = "Команда выполнена, но ничего не вывела."
         if len(output) > 4000:
             output = output[:4000] + "\n\n[Вывод обрезан]"
-        bot.reply_to(message, f"📥 Команда:\n`{command}`\n\n📤 Ответ:\n```\n{output}\n```", parse_mode="Markdown")
+
+        bot.reply_to(
+            message,
+            f"📥 Команда:\n`{command}`\n\n📤 Ответ:\n```\n{output}\n```",
+            parse_mode="Markdown"
+        )
     except Exception as e:
         bot.reply_to(message, f"❌ Ошибка:\n`{str(e)}`", parse_mode="Markdown")
 
