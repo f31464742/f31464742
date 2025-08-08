@@ -3,20 +3,20 @@ import subprocess
 import os
 import json
 
-BOT_TOKEN = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"  # токен
+BOT_TOKEN = "..."  # токен бота
 ALLOWED_CHAT_ID = -1002886621753  # ID чата
 DATA_FILE = "terminal.json"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Загружаем или создаем данные
+# Загружаем или создаём данные
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 else:
     data = {
         "message_id": None,
-        "terminal_history": "",
+        "history": [],
         "current_directory": os.getcwd()
     }
 
@@ -29,16 +29,20 @@ def is_command_dangerous(command):
         "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /",
         "sudo reboot", "sudo shutdown", ":(){ :|:& };:"
     ]
-    for p in dangerous_patterns:
-        if p in command.lower():
-            return True
-    return False
+    return any(p in command.lower() for p in dangerous_patterns)
 
 def update_terminal():
-    """Обновляет одно сообщение с историей"""
+    """Обновляет одно сообщение с последними 50 строками"""
     try:
+        # Берём только последние 50 строк для показа
+        visible_lines = data["history"][-50:]
+        big_terminal = "\n".join(visible_lines)
+
+        # Добавляем пустых строк сверху/снизу для “большого окна”
+        big_terminal = "\n" * 10 + big_terminal + "\n" * 10
+
         bot.edit_message_text(
-            f"```shell\n{data['terminal_history']}```",
+            f"```shell\n{big_terminal}```",
             chat_id=ALLOWED_CHAT_ID,
             message_id=data["message_id"],
             parse_mode="Markdown"
@@ -62,13 +66,14 @@ def handle_command(message):
 
     # Опасные команды
     if is_command_dangerous(command):
-        data["terminal_history"] += f"$ {command}\n# Отклонено: опасная команда\n"
+        data["history"].append(f"$ {command}")
+        data["history"].append("# Отклонено: опасная команда")
         update_terminal()
         return
 
     # clear
     if command == "clear":
-        data["terminal_history"] = ""
+        data["history"].clear()
         update_terminal()
         return
 
@@ -79,12 +84,13 @@ def handle_command(message):
             new_path = os.path.abspath(os.path.join(data["current_directory"], parts[1]))
             if os.path.isdir(new_path):
                 data["current_directory"] = new_path
-                data["terminal_history"] += f"$ {command}\n"
+                data["history"].append(f"$ {command}")
             else:
-                data["terminal_history"] += f"$ {command}\n# Нет такой директории\n"
+                data["history"].append(f"$ {command}")
+                data["history"].append("# Нет такой директории")
         else:
             data["current_directory"] = os.path.expanduser("~")
-            data["terminal_history"] += f"$ {command}\n"
+            data["history"].append(f"$ {command}")
         update_terminal()
         return
 
@@ -92,13 +98,12 @@ def handle_command(message):
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=data["current_directory"])
         output = result.stdout + result.stderr
-        data["terminal_history"] += f"$ {command}\n{output}"
+        data["history"].append(f"$ {command}")
+        if output.strip():
+            data["history"].extend(output.strip().split("\n"))
     except Exception as e:
-        data["terminal_history"] += f"$ {command}\n# Ошибка: {str(e)}\n"
-
-    # Ограничение длины (оставляем последние 4000 символов)
-    if len(data["terminal_history"]) > 4000:
-        data["terminal_history"] = data["terminal_history"][-4000:]
+        data["history"].append(f"$ {command}")
+        data["history"].append(f"# Ошибка: {str(e)}")
 
     update_terminal()
 
