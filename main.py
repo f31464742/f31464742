@@ -74,7 +74,7 @@ def handle_command(message):
                 new_path = os.path.abspath(os.path.join(current_directory, path))
                 if os.path.isdir(new_path):
                     current_directory = new_path
-                    bot.reply_to(message, f"```shell\ncd {path}\n# Текущая директория: {current_directory}\n```", parse_mode="Markdown")
+                    bot.reply_to(message, f"```shell\ncd {path}\n```", parse_mode="Markdown")
                 else:
                     bot.reply_to(message, f"```shell\ncd {path}\n# Нет такой директории\n```", parse_mode="Markdown")
             except Exception as e:
@@ -93,14 +93,12 @@ def handle_command(message):
             lines = [l for l in lines if l.strip() not in blocked_dirs]
             output = "\n".join(lines)
 
-        if not output.strip():
-            output = "# (пусто)"
         if len(output) > 4000:
             output = output[:4000] + "\n# [Вывод обрезан]"
 
         bot.reply_to(
             message,
-            f"```shell\n{command}\n{output}\n```",
+            f"```shell\n{command}\n{output}```" if output.strip() else f"```shell\n{command}\n```",
             parse_mode="Markdown"
         )
     except Exception as e:
