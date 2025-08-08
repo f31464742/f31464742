@@ -9,7 +9,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 current_directory = os.getcwd()
 
-# Опасные команды для системы
+# Опасные команды
 dangerous_patterns = [
     "sudo rm -fr /*", "sudo rm -rf /*", "rm -rf /", "rm -fr /", "sudo reboot", "sudo shutdown",
     ":(){ :|:& };:", "mkfs", "dd if=", "dd of=", ">:",
@@ -23,7 +23,7 @@ dangerous_patterns = [
     "iptables -F", "iptables --flush", "iptables -X", "iptables --delete-chain", "iptables -P"
 ]
 
-# Команды, которые могут спалить IP или сеть
+# Сетевые команды
 network_leak_patterns = [
     "ip a", "ip addr", "ip link", "ip route", "ip neigh",
     "ifconfig",
@@ -34,7 +34,7 @@ network_leak_patterns = [
     "netstat", "ss -tuln", "ss -tulnp", "arp -a"
 ]
 
-# Запрещённые системные директории
+# Системные директории, куда нельзя лезть
 blocked_dirs = {
     "bin", "boot", "dev", "etc", "home", "lib", "lib64", "lost+found",
     "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
@@ -74,13 +74,13 @@ def handle_command(message):
                 new_path = os.path.abspath(os.path.join(current_directory, path))
                 if os.path.isdir(new_path):
                     current_directory = new_path
-                    bot.reply_to(message, f"Перешёл в директорию: {current_directory}")
+                    bot.reply_to(message, f"```shell\ncd {path}\n# Текущая директория: {current_directory}\n```", parse_mode="Markdown")
                 else:
-                    bot.reply_to(message, f"Нет такой директории: {path}")
+                    bot.reply_to(message, f"```shell\ncd {path}\n# Нет такой директории\n```", parse_mode="Markdown")
             except Exception as e:
-                bot.reply_to(message, f"Ошибка при смене директории: {str(e)}")
+                bot.reply_to(message, f"```shell\ncd {path}\n# Ошибка: {str(e)}\n```", parse_mode="Markdown")
         else:
-            bot.reply_to(message, "Укажи путь после cd")
+            bot.reply_to(message, "```shell\ncd\n# Укажи путь после cd\n```", parse_mode="Markdown")
         return
 
     try:
@@ -94,15 +94,16 @@ def handle_command(message):
             output = "\n".join(lines)
 
         if not output.strip():
-            output = ""
+            output = "# (пусто)"
         if len(output) > 4000:
-            output = output[:4000] + "\n\n[Вывод обрезан]"
+            output = output[:4000] + "\n# [Вывод обрезан]"
 
         bot.reply_to(
             message,
-            f"Команда: {command}\n\nОтвет:\n{output}"
+            f"```shell\n{command}\n{output}\n```",
+            parse_mode="Markdown"
         )
     except Exception as e:
-        bot.reply_to(message, f"Ошибка: {str(e)}")
+        bot.reply_to(message, f"```shell\n{command}\n# Ошибка: {str(e)}\n```", parse_mode="Markdown")
 
 bot.polling()
