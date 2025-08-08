@@ -1,12 +1,14 @@
 import telebot
 import subprocess
 import os
+import random
 
 BOT_TOKEN = "7653223777:AAFc41uuY3FzZmdQxUzC0IKpAjnvgHGamgU"
 CHAT_ID = -1002886621753  # твой чат
-MESSAGE_ID = 265  # ID сообщения-терминала
+MESSAGE_ID = 265          # ID терминального сообщения
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
 current_directory = os.getcwd()
 
 # Опасные команды
@@ -34,11 +36,13 @@ network_leak_patterns = [
     "netstat", "ss -tuln", "ss -tulnp", "arp -a"
 ]
 
-# Системные директории, куда нельзя лезть
+# Директории под запретом
 blocked_dirs = {
     "bin", "boot", "dev", "etc", "home", "lib", "lib64", "lost+found",
     "mnt", "opt", "proc", "root", "run", "sbin", "srv", "sys", "tmp", "usr", "var"
 }
+
+terminal_log = []  # история команд
 
 def is_command_dangerous(command):
     c = command.lower()
@@ -47,85 +51,83 @@ def is_command_dangerous(command):
             return True
     return False
 
+def update_terminal():
+    # Формируем текст терминала
+    log_text = "\n".join(terminal_log[-20:])  # последние 20 команд
+    # Делаем сообщение "широким" + уникальный хвост
+    wide_tail = "\u200b" * 150
+    unique_tail = "\u200b" * random.randint(1, 5)
+    text = f"```shell\n{log_text}\n```{wide_tail}{unique_tail}"
+
+    try:
+        bot.edit_message_text(
+            text,
+            chat_id=CHAT_ID,
+            message_id=MESSAGE_ID,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        if "message is not modified" not in str(e):
+            print(f"[ERROR] {e}")
+
 @bot.message_handler(func=lambda message: True)
-def handle_cmd(message):
+def handle_command(message):
     global current_directory
 
     if message.chat.id != CHAT_ID:
         return
 
-    # Удаляем команду пользователя
+    command = message.text.strip()
+
+    # Удаляем сообщение пользователя
     try:
         bot.delete_message(message.chat.id, message.message_id)
     except:
         pass
 
-    command = message.text.strip()
-
-    # Проверка опасных команд
     if is_command_dangerous(command):
-        bot.edit_message_text(
-            f"```shell\n$ {command}\n# Неа, фигушки```" + "\u200b" * 150,
-            chat_id=CHAT_ID,
-            message_id=MESSAGE_ID,
-            parse_mode="Markdown"
-        )
+        terminal_log.append(f"$ {command}\n# неа фигушки")
+        update_terminal()
         return
 
-    # Обработка cd
+    # Команда cd
     if command.startswith("cd"):
         parts = command.split(maxsplit=1)
         if len(parts) == 2:
             path = parts[1].strip()
             dir_name = os.path.normpath(path).split(os.sep)[0]
             if dir_name in blocked_dirs:
-                output = "# Нет доступа к этой директории"
+                terminal_log.append(f"$ cd {path}\n# Нет доступа к этой директории")
             else:
                 try:
                     new_path = os.path.abspath(os.path.join(current_directory, path))
                     if os.path.isdir(new_path):
                         current_directory = new_path
-                        output = ""
+                        terminal_log.append(f"$ cd {path}")
                     else:
-                        output = "# Нет такой директории"
+                        terminal_log.append(f"$ cd {path}\n# Нет такой директории")
                 except Exception as e:
-                    output = f"# Ошибка: {str(e)}"
+                    terminal_log.append(f"$ cd {path}\n# Ошибка: {str(e)}")
         else:
-            output = "# Укажи путь после cd"
-
-        bot.edit_message_text(
-            f"```shell\n$ {command}\n{output}```" + "\u200b" * 150,
-            chat_id=CHAT_ID,
-            message_id=MESSAGE_ID,
-            parse_mode="Markdown"
-        )
+            terminal_log.append(f"$ cd\n# Укажи путь после cd")
+        update_terminal()
         return
 
-    # Выполняем команду
+    # Выполнение других команд
     try:
-        result = subprocess.run(
-            command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory
-        )
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory)
         output = result.stdout + result.stderr
 
-        # Фильтруем ls
+        # Фильтрация ls
         if command.strip() == "ls":
             lines = output.splitlines()
             lines = [l for l in lines if l.strip() not in blocked_dirs]
             output = "\n".join(lines)
 
-        if len(output) > 4000:
-            output = output[:4000] + "\n# [Вывод обрезан]"
-
+        terminal_log.append(f"$ {command}\n{output.strip()}")
+        update_terminal()
     except Exception as e:
-        output = f"# Ошибка: {str(e)}"
-
-    # Делаем широкое сообщение
-    bot.edit_message_text(
-        f"```shell\n$ {command}\n{output}```" + "\u200b" * 150,
-        chat_id=CHAT_ID,
-        message_id=MESSAGE_ID,
-        parse_mode="Markdown"
-    )
+        terminal_log.append(f"$ {command}\n# Ошибка: {str(e)}")
+        update_terminal()
 
 bot.polling()
