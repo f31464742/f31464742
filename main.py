@@ -42,10 +42,15 @@ def update_terminal():
     """Обновляет терминал в одном сообщении"""
     global last_terminal_text
     
-    # 10 пустых строк сверху для увеличения высоты
+    # 10 пустых строк сверху для высоты
     empty_top = "\n" * 10  
+    # 10 невидимых символов для ширины (U+200B)
+    wide_pad = "\u200B" * 10
     
-    text = f"```shell\n{empty_top}" + "\n".join(terminal_log) + "\n```"
+    # Каждую строку делаем широкой
+    wide_log = [line + wide_pad for line in terminal_log]
+    
+    text = f"```shell\n{empty_top}" + "\n".join(wide_log) + "\n```"
     
     if text == last_terminal_text:
         return
