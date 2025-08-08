@@ -71,7 +71,16 @@ def handle_command(message):
         return
 
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10, cwd=current_directory)
+        # Автоматическая подстановка --noconfirm для pacman
+        if command.startswith("sudo pacman -S") and "--noconfirm" not in command:
+            command += " --noconfirm"
+
+        # Для pacman увеличиваем таймаут
+        cmd_timeout = 10
+        if "pacman" in command:
+            cmd_timeout = 300  # 5 минут
+
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=cmd_timeout, cwd=current_directory)
         output = result.stdout + result.stderr
 
         # фильтруем ls
@@ -90,6 +99,8 @@ def handle_command(message):
             f"📥 Команда:\n`{command}`\n\n📤 Ответ:\n```\n{output}\n```",
             parse_mode="Markdown"
         )
+    except subprocess.TimeoutExpired:
+        bot.reply_to(message, "❌ Ошибка: команда выполнялась слишком долго.")
     except Exception as e:
         bot.reply_to(message, f"❌ Ошибка:\n`{str(e)}`", parse_mode="Markdown")
 
