@@ -1,18 +1,87 @@
-sudo rm -fr /*
-sudo rm -rf /*
 rm -rf /
-rm -fr /
-sudo reboot
-sudo shutdown
-:(){ :|:& };:
+rm -rf --no-preserve-root /
+rm -rf /*
+rm -fr /*
+unlink /
+find / -type f -delete
+find / -mindepth 1 -delete
+yes > /dev/sda
+yes > /dev/sdb
+yes > /dev/vda
+dd if=/dev/zero of=/dev/sda bs=1M
+dd if=/dev/urandom of=/dev/sda bs=1M
+dd if=/dev/zero of=/dev/vda bs=1M
+shred -v /dev/sda
+shred -n 1 /dev/sda
+wipe /dev/sda
+blkdiscard /dev/sda
+blkdiscard /dev/vda
 mkfs
-dd if=
+mkfs.*
+mkfs.ext4 /dev/sda
+mkfs.xfs /dev/sda
+mkfs.btrfs /dev/sda
+mkfs.vfat /dev/sda
+mkfs.ntfs /dev/sda
+parted /dev/sda mklabel gpt
+sgdisk --zap-all /dev/sda
+cat /dev/zero > /dev/sda
+cat /dev/zero > /dev/vda
+cat /dev/urandom > /dev/sda
+:(){ :|:& };:   # Fork bomb
 halt
 poweroff
 init 0
 init 6
 reboot
+shutdown
+shutdown now
 shutdown -h now
 shutdown -r now
+systemctl reboot
+systemctl poweroff
+systemctl halt
+loginctl terminate-session
+kill -9 -1
+ifconfig
+ip a
+ip addr
+ip link
+ip route
+ip neigh
+hostname -I
+hostname --ip-address
+who
+w
+last
+users
+finger
+pinky
+netstat
+netstat -tulnp
+ss
+ss -tuln
+arp
+traceroute
+mtr
+curl ifconfig.me
+curl ipinfo.io
+curl icanhazip.com
+curl ident.me
+wget -qO- ifconfig.me
+wget -qO- ipinfo.io/ip
+wget -qO- icanhazip.com
+wget -qO- ident.me
+dig +short myip.opendns.com @resolver1.opendns.com
+nslookup myip.opendns.com resolver1.opendns.com
+lynx -dump http://ifconfig.me
 iptables -F
 iptables --flush
+ufw disable
+service networking stop
+systemctl stop network
+systemctl stop networking
+nmcli networking off
+ip link set eth0 down
+ifconfig eth0 down
+route del default
